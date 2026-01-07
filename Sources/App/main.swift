@@ -1,17 +1,20 @@
 import Vapor
 
-let app = Application()
+let app = try Application(.detect())
 defer { app.shutdown() }
 
-app.get { req in
+// Make app accessible externally
+app.http.server.configuration.hostname = "0.0.0.0"
+app.http.server.configuration.port = 8080
+
+app.get { _ in
     "Hello from Vapor 🚀"
 }
 
-app.webSocket("ws") { req, ws in
+app.webSocket("ws") { _, ws in
     ws.onText { ws, text in
         ws.send("Echo: \(text)")
     }
-    
 }
 
 try app.run()
