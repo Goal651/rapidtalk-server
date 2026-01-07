@@ -16,8 +16,11 @@ RUN swift package resolve
 # Copy source code
 COPY Sources ./Sources
 
+# Build once for faster startup
+RUN swift build -c debug
+
 # Expose port
 EXPOSE 8080
 
-# For development, run the server
-CMD ["swift", "run", "--configuration", "release"]
+# Run the pre-built binary
+CMD [".build/debug/App"]
