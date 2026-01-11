@@ -11,6 +11,10 @@ app.get { req in
     "Hello from Vapor 🚀 \(req)"
 }
 
+app.get("wigo"){ req in
+    "Hello from Wigo 🚀"
+}
+
 app.webSocket("ws") { _, ws in
     ws.onText { ws, text in
         ws.send("Echo: \(text)")

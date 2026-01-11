@@ -1,19 +1,4 @@
-FROM swift:6.0-jammy AS build
-
-WORKDIR /build
-
-# Copy package files first (cache)
-COPY Package.* ./
-RUN swift package resolve
-
-# Copy source
-COPY Sources ./Sources
-
-# Build release
-RUN swift build -c release
-
-# ---- Runtime image ----
-FROM swift:6.0-jammy-slim
+FROM swift:6.0-jammy
 
 RUN apt update && apt install -y \
     libssl3 ca-certificates \
@@ -21,7 +6,12 @@ RUN apt update && apt install -y \
 
 WORKDIR /app
 
-COPY --from=build /build/.build/release/App /app/App
+COPY Package.* ./
+RUN swift package resolve
+
+COPY Sources ./Sources
+RUN swift build -c release
 
 EXPOSE 8080
-CMD ["./App", "serve", "--hostname", "0.0.0.0", "--port", "8080"]
+
+CMD ["swift", "run", "--configuration", "release"]
