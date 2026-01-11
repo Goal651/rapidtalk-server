@@ -1,24 +1,8 @@
 import Vapor
 
-let app = try Application(.detect())
+var env = try Environment.detect()
+let app = Application(env)
 defer { app.shutdown() }
 
-// Make app accessible externally
-app.http.server.configuration.hostname = "0.0.0.0"
-app.http.server.configuration.port = 8080
-
-app.get { req in
-    "Hello from Vapor 🚀 \(req)"
-}
-
-app.get("wigo"){ req in
-    "Hello from Wigo 🚀"
-}
-
-app.webSocket("ws") { _, ws in
-    ws.onText { ws, text in
-        ws.send("Echo: \(text)")
-    }
-}
-
+try configure(app)
 try app.run()

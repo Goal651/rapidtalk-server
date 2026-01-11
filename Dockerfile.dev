@@ -8,24 +8,10 @@ RUN apt update && apt install -y \
 
 WORKDIR /app
 
-# Install swiftwatch from GitHub releases
-RUN curl -L https://github.com/SwiftWatch/SwiftWatch/releases/latest/download/swiftwatch.ubuntu20.04.gz -o swiftwatch.gz \
-    && gunzip swiftwatch.gz \
-    && chmod +x swiftwatch \
-    && mv swiftwatch /usr/local/bin/
-
-# Alternative: Install via Mint (package manager)
-# RUN git clone https://github.com/yonaskolb/Mint.git \
-#     && cd Mint \
-#     && swift build -c release \
-#     && mv .build/release/mint /usr/local/bin/ \
-#     && rm -rf Mint \
-#     && mint install SwiftWatch/SwiftWatch
-
 COPY Package.* ./
 RUN swift package resolve
 
 EXPOSE 8080
 
 # Development mode with live reload
-CMD ["swiftwatch", "run"]
+CMD ["swift", "run"]
