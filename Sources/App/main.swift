@@ -7,8 +7,8 @@ defer { app.shutdown() }
 app.http.server.configuration.hostname = "0.0.0.0"
 app.http.server.configuration.port = 8080
 
-app.get { _ in
-    "Hello from Vapor 🚀"
+app.get { req in
+    "Hello from Vapor 🚀 \(req)"
 }
 
 app.webSocket("ws") { _, ws in
