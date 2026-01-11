@@ -1,20 +1,20 @@
-services:
-  app-dev:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    ports:
-      - "8080:8080"
-    container_name: rapidtalk-server-dev
-    volumes:
-      - ./Package.swift:/app/Package.swift
-      - ./Sources:/app/Sources
-      - ./Tests:/app/Tests
-    environment:
-      - APP_ENV=development
-    # Optional: For even faster reloads, skip building tests
-    command: swiftwatch run --skip-build-tests
-    
+#services:
+#  app-dev:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.dev
+#    ports:
+#      - "8080:8080"
+#    container_name: rapidtalk-server-dev
+#    volumes:
+#      - ./Package.swift:/app/Package.swift
+#      - ./Sources:/app/Sources
+#      - ./Tests:/app/Tests
+#    environment:
+#      - APP_ENV=development
+#    # Optional: For even faster reloads, skip building tests
+#    command: swiftwatch run --skip-build-tests
+#    
 #   app-prod:
 #     build:
 #       context: .
@@ -24,3 +24,12 @@ services:
 #     container_name: rapidtalk-server-prod
 #     environment:
 #       - APP_ENV=production
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: rapidtalk
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
