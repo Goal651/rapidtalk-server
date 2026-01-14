@@ -58,4 +58,27 @@ enum MessageController {
             .all()
         return APIResponse(success: true, data: messages, message: "All messages retrieved")
     }
+
+    @Sendable
+    static func uploadAttachment(req: Request) async throws -> APIResponse<String> {
+        let _ = try req.auth.require(SessionPayload.self)
+        let upload = try req.content.decode(FileUploadRequest.self)
+        
+        let uploadDir = req.application.directory.publicDirectory + "uploads/"
+        if !FileManager.default.fileExists(atPath: uploadDir) {
+            try FileManager.default.createDirectory(atPath: uploadDir, withIntermediateDirectories: true)
+        }
+        
+        let filename = "\(UUID().uuidString)-\(upload.file.filename)"
+        let path = uploadDir + filename
+        
+        try await req.fileio.writeFile(upload.file.data, at: path)
+        
+        let fileUrl = "/uploads/\(filename)"
+        return APIResponse(success: true, data: fileUrl, message: "File uploaded successfully")
+    }
+}
+
+struct FileUploadRequest: Content {
+    let file: File
 }

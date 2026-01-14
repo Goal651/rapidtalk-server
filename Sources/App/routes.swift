@@ -8,6 +8,7 @@
 import Vapor
 
 func routes(_ app: Application) throws {
+    app.get("ping") { _ in "pong" }
     let authController = AuthController()
     
     // Auth Routes
@@ -41,6 +42,7 @@ func routes(_ app: Application) throws {
     // Message Routes
     protected.group("messages") { messages in
         messages.post(use: MessageController.create)
+        messages.post("upload", use: MessageController.uploadAttachment)
         messages.get(use: MessageController.all)
         messages.get("conversation", ":user1ID", ":user2ID", use: MessageController.getConversation)
     }
