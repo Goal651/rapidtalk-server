@@ -1,6 +1,7 @@
 import Vapor
 import Fluent
 import JWT
+import PostgresKit
 
 struct AuthController {
     
@@ -27,6 +28,15 @@ struct AuthController {
             } catch {
                 return req.eventLoop.makeFailedFuture(error)
             }
+        }.flatMapError { error in
+            req.logger.error("Signup failed: \(error)")
+            
+            // Check for specific Postgres unique constraint violation
+            if let psqlError = error as? PSQLError, psqlError.serverInfo?[.sqlState] == "23505" {
+                return req.eventLoop.makeFailedFuture(Abort(.conflict, reason: "Email already exists"))
+            }
+            
+            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Database error: \(error.localizedDescription)"))
         }
     }
     
