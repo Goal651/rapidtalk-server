@@ -26,6 +26,7 @@ func routes(_ app: Application) throws {
         users.get("search", use: UserController.search)
         users.get(":userID", use: UserController.getById)
         users.patch(":userID", "status", use: UserController.updateStatus)
+        users.post("avatar", use: UserController.uploadAvatar)
     }
     
     protected.get("user") { req -> EventLoopFuture<APIResponse<User>> in

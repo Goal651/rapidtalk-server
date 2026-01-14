@@ -3,67 +3,96 @@ import Fluent
 
 enum UserController {
 
-    static func all(req: Request) -> EventLoopFuture<APIResponse<[User]>> {
+    @Sendable
+    static func all(req: Request) async throws -> APIResponse<[User]> {
         let payload = try? req.auth.require(SessionPayload.self)
-        return User.query(on: req.db)
+        let users = try await User.query(on: req.db)
             .filter(\.$id != payload?.userId ?? UUID())
             .all()
-            .map { users in
-                APIResponse(success: true, data: users, message: "Users retrieved successfully")
-            }
+        return APIResponse(success: true, data: users, message: "Users retrieved successfully")
     }
 
-    static func getById(req: Request) throws -> EventLoopFuture<APIResponse<User>> {
+    @Sendable
+    static func getById(req: Request) async throws -> APIResponse<User> {
         guard let userID = req.parameters.get("userID", as: UUID.self) else {
             throw Abort(.badRequest)
         }
-        return User.find(userID, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .map { user in
-                APIResponse(success: true, data: user, message: "User found")
-            }
+        guard let user = try await User.find(userID, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        return APIResponse(success: true, data: user, message: "User found")
     }
 
-    static func updateStatus(req: Request) throws -> EventLoopFuture<APIResponse<User>> {
+    @Sendable
+    static func updateStatus(req: Request) async throws -> APIResponse<User> {
         guard let userID = req.parameters.get("userID", as: UUID.self) else {
             throw Abort(.badRequest)
         }
         let statusUpdate = try req.content.decode(UserStatusUpdate.self)
-        return User.find(userID, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .flatMap { user in
-                user.status = statusUpdate.status
-                user.online = statusUpdate.online ?? user.online
-                user.lastActive = Date()
-                return user.save(on: req.db).map {
-                    APIResponse(success: true, data: user, message: "Status updated")
-                }
-            }
+        guard let user = try await User.find(userID, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        
+        user.status = statusUpdate.status
+        user.online = statusUpdate.online ?? user.online
+        user.lastActive = Date()
+        try await user.save(on: req.db)
+        
+        return APIResponse(success: true, data: user, message: "Status updated")
     }
 
-    static func search(req: Request) throws -> EventLoopFuture<APIResponse<[User]>> {
+    @Sendable
+    static func search(req: Request) async throws -> APIResponse<[User]> {
         let searchTerm = req.query[String.self, at: "query"] ?? ""
-        return User.query(on: req.db)
+        let users = try await User.query(on: req.db)
             .filter(\.$name ~~ searchTerm)
             .all()
-            .map { users in
-                APIResponse(success: true, data: users, message: "Search completed")
-            }
+        return APIResponse(success: true, data: users, message: "Search completed")
     }
 
-    static func seed(req: Request) throws -> EventLoopFuture<APIResponse<[User]>> {
+    @Sendable
+    static func seed(req: Request) async throws -> APIResponse<[User]> {
         let users = [
             User(name: "Alice", email: "alice@example.com", password: try req.password.hash("password123"), bio: "Testing Alice", online: false),
             User(name: "Bob", email: "bob@example.com", password: try req.password.hash("password123"), bio: "Testing Bob", online: false),
             User(name: "Charlie", email: "charlie@example.com", password: try req.password.hash("password123"), bio: "Testing Charlie", online: false)
         ]
         
-        return users.create(on: req.db).flatMap {
-            User.query(on: req.db).all().map { allUsers in
-                APIResponse(success: true, data: allUsers, message: "Seeded 3 test users")
-            }
-        }
+        try await users.create(on: req.db)
+        let allUsers = try await User.query(on: req.db).all()
+        return APIResponse(success: true, data: allUsers, message: "Seeded 3 test users")
     }
+
+    @Sendable
+    static func uploadAvatar(req: Request) async throws -> APIResponse<User> {
+        let payload = try req.auth.require(SessionPayload.self)
+        let upload = try req.content.decode(AvatarUpload.self)
+        
+        // Create directory if it doesn't exist
+        let avatarDir = req.application.directory.publicDirectory + "avatars/"
+        if !FileManager.default.fileExists(atPath: avatarDir) {
+            try FileManager.default.createDirectory(atPath: avatarDir, withIntermediateDirectories: true)
+        }
+        
+        let filename = "\(payload.userId.uuidString)-\(UUID().uuidString).jpg"
+        let path = avatarDir + filename
+        
+        try await req.fileio.writeFile(upload.avatar.data, at: path)
+        
+        guard let user = try await User.find(payload.userId, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        
+        let avatarUrl = "/avatars/\(filename)"
+        user.avatar = avatarUrl
+        try await user.save(on: req.db)
+        
+        return APIResponse(success: true, data: user, message: "Avatar uploaded successfully")
+    }
+}
+
+struct AvatarUpload: Content {
+    let avatar: File
 }
 
 struct UserStatusUpdate: Content {

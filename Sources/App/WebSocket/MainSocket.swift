@@ -2,15 +2,73 @@
 //  MainSocket.swift
 //  App
 //
-//  Created by wigothehacker on 1/11/26.
-//
 
 import Vapor
 import Fluent
 import JWT
 
+actor ConnectionManager {
+    private var connections: [UUID: WebSocket] = [:]
+
+    func addConnection(_ ws: WebSocket, for userId: UUID) {
+        connections[userId] = ws
+        print("User \(userId) connected. Online users: \(connections.keys)")
+        broadcastOnlineUsers()
+    }
+
+    func removeConnection(for userId: UUID) {
+        connections.removeValue(forKey: userId)
+        print("User \(userId) disconnected. Online users: \(connections.keys)")
+        broadcastOnlineUsers()
+    }
+
+    func send<T: Content>(_ message: T, to userId: UUID, type: String) {
+        let response = WsResponse(success: true, data: message, message: type)
+        guard let connection = connections[userId] else { return }
+        
+        if let data = try? JSONEncoder().encode(response),
+           let text = String(data: data, encoding: .utf8) {
+            connection.send(text)
+        }
+    }
+
+    private func broadcastOnlineUsers() {
+        let onlineUserIds = Array(connections.keys)
+        let response = WsResponse(success: true, data: OnlineUsersResponse(userIds: onlineUserIds), message: "online_users")
+        
+        if let data = try? JSONEncoder().encode(response),
+           let text = String(data: data, encoding: .utf8) {
+            for connection in connections.values {
+                connection.send(text)
+            }
+        }
+    }
+
+    func broadcastStatus(userId: UUID, online: Bool, lastActive: Date) {
+        let event = UserStatusEvent(userId: userId, online: online, lastActive: lastActive)
+        let response = WsResponse(success: true, data: event, message: "user_status")
+        
+        if let data = try? JSONEncoder().encode(response),
+           let text = String(data: data, encoding: .utf8) {
+            for connection in connections.values {
+                connection.send(text)
+            }
+        }
+    }
+
+    func broadcastToAll<T: Content>(_ message: T, type: String) {
+        let response = WsResponse(success: true, data: message, message: type)
+        if let data = try? JSONEncoder().encode(response),
+           let text = String(data: data, encoding: .utf8) {
+            for connection in connections.values {
+                connection.send(text)
+            }
+        }
+    }
+}
+
 enum MainSocket {
-    nonisolated(unsafe) static var connections: [UUID: WebSocket] = [:]
+    static let manager = ConnectionManager()
 
     static func register(on app: Application) {
         app.webSocket("ws") { req, ws in
@@ -21,18 +79,39 @@ enum MainSocket {
             }
 
             let userId = payload.userId
-            connections[userId] = ws
-
-            // Broadcast online status
-            broadcastStatus(userId: userId, online: true, on: app)
+            
+            Task {
+                await manager.addConnection(ws, for: userId)
+                
+                // Update database: user is online
+                if let user = try? await User.find(userId, on: app.db).get() {
+                    user.online = true
+                    user.lastActive = Date()
+                    _ = try? await user.save(on: app.db).get()
+                    
+                    // Broadcast the status update
+                    await manager.broadcastStatus(userId: userId, online: true, lastActive: user.lastActive ?? Date())
+                }
+            }
 
             ws.onText { ws, text in
                 handleIncomingMessage(text, from: userId, on: app)
             }
 
             ws.onClose.whenComplete { _ in
-                connections.removeValue(forKey: userId)
-                broadcastStatus(userId: userId, online: false, on: app)
+                Task {
+                    await manager.removeConnection(for: userId)
+                    
+                    // Update database: user is offline
+                    if let user = try? await User.find(userId, on: app.db).get() {
+                        user.online = false
+                        user.lastActive = Date()
+                        _ = try? await user.save(on: app.db).get()
+                        
+                        // Broadcast the status update (lastActive is now set)
+                        await manager.broadcastStatus(userId: userId, online: false, lastActive: user.lastActive ?? Date())
+                    }
+                }
             }
         }
     }
@@ -48,11 +127,15 @@ enum MainSocket {
             }
         case "typing":
             if let payload = try? JSONDecoder().decode(TypingPayload.self, from: data) {
-                broadcastEvent(type: "typing", data: payload, to: payload.receiverId)
+                Task {
+                    await manager.send(payload, to: payload.receiverId, type: "typing")
+                }
             }
         case "message_read":
             if let payload = try? JSONDecoder().decode(ReadPayload.self, from: data) {
-                broadcastEvent(type: "message_read", data: payload, to: payload.senderId)
+                Task {
+                    await manager.send(payload, to: payload.senderId, type: "message_read")
+                }
             }
         case "reaction":
             if let payload = try? JSONDecoder().decode(ReactionWsPayload.self, from: data) {
@@ -71,19 +154,12 @@ enum MainSocket {
         )
 
         reaction.save(on: app.db).flatMap {
-            // Find who needs to know about this reaction (the recipient of the original message OR the sender)
-            // For simplicity, we can broadcast to the original recipient. 
-            // Better: find the message to get both parties.
             Message.find(payload.messageId, on: app.db).map { message in
                 guard let message = message else { return }
-                
-                let response = WsResponse(success: true, data: reaction, message: "reaction")
-                if let responseData = try? JSONEncoder().encode(response),
-                   let responseString = String(data: responseData, encoding: .utf8) {
-                    
-                    // Send to both parties involved in the conversation
-                    connections[message.$sender.id]?.send(responseString)
-                    connections[message.$receiver.id]?.send(responseString)
+    
+                Task {
+                    await manager.send(reaction, to: message.$sender.id, type: "reaction")
+                    await manager.send(reaction, to: message.$receiver.id, type: "reaction")
                 }
             }
         }.whenComplete { _ in }
@@ -101,36 +177,18 @@ enum MainSocket {
         message.save(on: app.db).flatMap {
             message.$sender.load(on: app.db).flatMap {
                 message.$receiver.load(on: app.db).map {
-                    let response = WsResponse(success: true, data: message, message: "chat_message")
-                    if let responseData = try? JSONEncoder().encode(response),
-                       let responseString = String(data: responseData, encoding: .utf8) {
-                        
-                        // Send to receiver
-                        connections[payload.receiverId]?.send(responseString)
-                        
-                        // Acknowledge sender
-                        connections[senderId]?.send(responseString)
+                    Task {
+                        await manager.send(message, to: payload.receiverId, type: "chat_message")
+                        await manager.send(message, to: senderId, type: "chat_message")
                     }
                 }
             }
         }.whenComplete { _ in }
     }
+}
 
-    private static func broadcastEvent<T: Content>(type: String, data: T, to recipientId: UUID) {
-        let response = WsResponse(success: true, data: data, message: type)
-        if let responseData = try? JSONEncoder().encode(response),
-           let responseString = String(data: responseData, encoding: .utf8) {
-            connections[recipientId]?.send(responseString)
-        }
-    }
-
-    private static func broadcastStatus(userId: UUID, online: Bool, on app: Application) {
-        let event = UserStatusEvent(userId: userId, online: online, lastActive: Date())
-        if let data = try? JSONEncoder().encode(WsResponse(success: true, data: event, message: "user_status")),
-           let text = String(data: data, encoding: .utf8) {
-            connections.values.forEach { $0.send(text) }
-        }
-    }
+struct OnlineUsersResponse: Content {
+    let userIds: [UUID]
 }
 
 struct WsEvent: Content {

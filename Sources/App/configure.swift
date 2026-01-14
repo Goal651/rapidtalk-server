@@ -15,6 +15,9 @@ public func configure(_ app: Application) throws {
     app.http.server.configuration.hostname = "0.0.0.0"
     app.http.server.configuration.port = 8080
 
+    // Serve files from Public/
+    app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+
     // Set ISO8601 for JSON Dates
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
