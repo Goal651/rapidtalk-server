@@ -1,6 +1,6 @@
 import Vapor
 
-enum MessageType: String, Codable {
+enum MessageType: String, Codable, CaseIterable {
     case text = "TEXT"
     case image = "IMAGE"
     case audio = "AUDIO"
@@ -8,7 +8,7 @@ enum MessageType: String, Codable {
     case file = "FILE"
 }
 
-enum UserRole: String, Codable {
+enum UserRole: String, Codable, CaseIterable {
     case user = "USER"
     case admin = "ADMIN"
 }

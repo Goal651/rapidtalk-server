@@ -13,14 +13,14 @@ struct WsResponse<T: Content>: Content {
 }
 
 struct ChatMessagePayload: Content {
-    let senderId: Int
-    let receiverId: Int
+    let senderId: UUID
+    let receiverId: UUID
     let content: String
     let type: MessageType
     let fileName: String?
 }
 
-struct Reaction: Content {
+struct ReactionDTO: Content {
     let emoji: String
-    let userId: Int
+    let userId: UUID
 }

@@ -4,22 +4,29 @@ import Fluent
 enum MessageController {
 
     static func create(req: Request) throws -> EventLoopFuture<APIResponse<Message>> {
-        let payload = try req.content.decode(ChatMessagePayload.self)
+        let payload = try req.auth.require(SessionPayload.self)
+        let messagePayload = try req.content.decode(ChatMessagePayload.self)
+        
         let message = Message(
-            content: payload.content,
-            type: payload.type,
-            senderId: payload.senderId,
-            receiverId: payload.receiverId,
-            fileName: payload.fileName
+            content: messagePayload.content,
+            type: messagePayload.type,
+            senderId: payload.userId,
+            receiverId: messagePayload.receiverId,
+            fileName: messagePayload.fileName
         )
-        return message.save(on: req.db).map {
-            APIResponse(success: true, data: message, message: "Message sent")
+        
+        return message.save(on: req.db).flatMap {
+            message.$sender.load(on: req.db).flatMap {
+                message.$receiver.load(on: req.db).map {
+                    APIResponse(success: true, data: message, message: "Message sent successfully")
+                }
+            }
         }
     }
 
     static func getConversation(req: Request) throws -> EventLoopFuture<APIResponse<[Message]>> {
-        guard let user1 = req.parameters.get("user1ID", as: Int.self),
-              let user2 = req.parameters.get("user2ID", as: Int.self) else {
+        guard let user1 = req.parameters.get("user1ID", as: UUID.self),
+              let user2 = req.parameters.get("user2ID", as: UUID.self) else {
             throw Abort(.badRequest)
         }
 
@@ -37,9 +44,10 @@ enum MessageController {
             .sort(\.$timestamp, .ascending)
             .with(\.$sender)
             .with(\.$receiver)
+            .with(\.$reactions)
             .all()
             .map { messages in
-                APIResponse(success: true, data: messages, message: "Conversation retrieved")
+                APIResponse(success: true, data: messages, message: "Messages retrieved successfully")
             }
     }
 

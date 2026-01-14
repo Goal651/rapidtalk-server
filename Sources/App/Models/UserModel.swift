@@ -11,28 +11,28 @@ import Vapor
 final class User: Model, @unchecked Sendable, Content {
     static let schema = "users"
 
-    @ID(custom: .id, generatedBy: .database)
-    var id: Int?
+    @ID(key: .id)
+    var id: UUID?
 
     @Field(key: "name")
-    var name: String?
-
-    @Field(key: "avatar")
-    var avatar: String?
-
-    @Field(key: "password")
-    var password: String?
+    var name: String
 
     @Field(key: "email")
-    var email: String?
+    var email: String
 
-    @Field(key: "user_role")
-    var userRole: UserRole?
+    @Field(key: "password")
+    var password: String
 
-    @Field(key: "status")
+    @OptionalField(key: "avatar")
+    var avatar: String?
+
+    @Enum(key: "user_role")
+    var userRole: UserRole
+
+    @OptionalField(key: "status")
     var status: String?
 
-    @Field(key: "bio")
+    @OptionalField(key: "bio")
     var bio: String?
 
     @Timestamp(key: "last_active", on: .none)
@@ -42,31 +42,29 @@ final class User: Model, @unchecked Sendable, Content {
     var createdAt: Date?
 
     @Field(key: "online")
-    var online: Bool?
+    var online: Bool
 
     init() {}
 
-    init(id: Int? = nil, 
-         name: String? = nil, 
+    init(id: UUID? = nil, 
+         name: String, 
+         email: String,
+         password: String,
          avatar: String? = nil, 
-         password: String? = nil, 
-         email: String? = nil, 
-         userRole: UserRole? = .user, 
+         userRole: UserRole = .user, 
          status: String? = nil, 
          bio: String? = nil, 
          lastActive: Date? = nil, 
-         createdAt: Date? = nil, 
-         online: Bool? = false) {
+         online: Bool = false) {
         self.id = id
         self.name = name
-        self.avatar = avatar
-        self.password = password
         self.email = email
+        self.password = password
+        self.avatar = avatar
         self.userRole = userRole
         self.status = status
         self.bio = bio
         self.lastActive = lastActive
-        self.createdAt = createdAt
         self.online = online
     }
 }
