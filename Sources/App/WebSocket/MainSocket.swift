@@ -171,15 +171,18 @@ enum MainSocket {
             type: payload.messageType,
             senderId: senderId,
             receiverId: payload.receiverId,
-            fileName: payload.fileName
+            fileName: payload.fileName,
+            replyToId: payload.replyToId
         )
 
         message.save(on: app.db).flatMap {
             message.$sender.load(on: app.db).flatMap {
-                message.$receiver.load(on: app.db).map {
-                    Task {
-                        await manager.send(message, to: payload.receiverId, type: "chat_message")
-                        await manager.send(message, to: senderId, type: "chat_message")
+                message.$receiver.load(on: app.db).flatMap {
+                    message.$replyTo.load(on: app.db).map {
+                        Task {
+                            await manager.send(message, to: payload.receiverId, type: "chat_message")
+                            await manager.send(message, to: senderId, type: "chat_message")
+                        }
                     }
                 }
             }

@@ -13,12 +13,14 @@ enum MessageController {
             type: messagePayload.messageType,
             senderId: payload.userId,
             receiverId: messagePayload.receiverId,
-            fileName: messagePayload.fileName
+            fileName: messagePayload.fileName,
+            replyToId: messagePayload.replyToId
         )
         
         try await message.save(on: req.db)
         try await message.$sender.load(on: req.db)
         try await message.$receiver.load(on: req.db)
+        try await message.$replyTo.load(on: req.db)
         
         return APIResponse(success: true, data: message, message: "Message sent successfully")
     }
@@ -45,6 +47,7 @@ enum MessageController {
             .with(\.$sender)
             .with(\.$receiver)
             .with(\.$reactions)
+            .with(\.$replyTo)
             .all()
             
         return APIResponse(success: true, data: messages, message: "Messages retrieved successfully")
@@ -55,6 +58,7 @@ enum MessageController {
         let messages = try await Message.query(on: req.db)
             .with(\.$sender)
             .with(\.$receiver)
+            .with(\.$replyTo)
             .all()
         return APIResponse(success: true, data: messages, message: "All messages retrieved")
     }
