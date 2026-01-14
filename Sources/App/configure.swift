@@ -15,6 +15,15 @@ public func configure(_ app: Application) throws {
     app.http.server.configuration.hostname = "0.0.0.0"
     app.http.server.configuration.port = 8080
 
+    // Set ISO8601 for JSON Dates
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    ContentConfiguration.global.use(encoder: encoder, for: .json)
+    
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    ContentConfiguration.global.use(decoder: decoder, for: .json)
+
     // Configure JWT
     app.jwt.signers.use(.hs256(key: Environment.get("JWT_SECRET") ?? "your-secret-key"))
 
@@ -29,6 +38,8 @@ public func configure(_ app: Application) throws {
         as: .psql
     )
 
+    app.migrations.add(CreateUserRoleEnum())
+    app.migrations.add(CreateMessageTypeEnum())
     app.migrations.add(CreateUser())
     app.migrations.add(CreateMessage())
     app.migrations.add(CreateReaction())

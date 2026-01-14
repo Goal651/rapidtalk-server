@@ -15,25 +15,26 @@ func routes(_ app: Application) throws {
         auth.post("signup", use: authController.signup)
         auth.post("login", use: authController.login)
     }
-    
+    app.post("users","seed", use: UserController.seed)
     // Protected Routes
-    let protected = app.group(JWTPayloadMiddleware<SessionPayload>())
+    let protected = app.grouped(SessionPayload.authenticator(), SessionPayload.guardMiddleware())
     
     // User Routes
     protected.group("users") { users in
-        users.post("seed", use: UserController.seed)
+      
         users.get(use: UserController.all)
         users.get("search", use: UserController.search)
         users.get(":userID", use: UserController.getById)
         users.patch(":userID", "status", use: UserController.updateStatus)
     }
     
-    protected.get("user") { req -> User in
-        try req.auth.require(SessionPayload.self)
+    protected.get("user") { req -> EventLoopFuture<APIResponse<User>> in
         let payload = try req.auth.require(SessionPayload.self)
-        return try User.find(payload.userId, on: req.db)
+        return User.find(payload.userId, on: req.db)
             .unwrap(or: Abort(.notFound))
-            .wait() // Note: In a real app, you should use flatMap, but this is a shorthand for now
+            .map { user in
+                APIResponse(success: true, data: user, message: "User found")
+            }
     }
 
     // Message Routes

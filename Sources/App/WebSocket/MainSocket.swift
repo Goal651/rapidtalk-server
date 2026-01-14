@@ -10,7 +10,7 @@ import Fluent
 import JWT
 
 enum MainSocket {
-    static var connections: [UUID: WebSocket] = [:]
+    nonisolated(unsafe) static var connections: [UUID: WebSocket] = [:]
 
     static func register(on app: Application) {
         app.webSocket("ws") { req, ws in
@@ -47,17 +47,52 @@ enum MainSocket {
                 saveAndBroadcastMessage(payload, from: userId, on: app)
             }
         case "typing":
-            // Forward typing indicator
-            break
+            if let payload = try? JSONDecoder().decode(TypingPayload.self, from: data) {
+                broadcastEvent(type: "typing", data: payload, to: payload.receiverId)
+            }
+        case "message_read":
+            if let payload = try? JSONDecoder().decode(ReadPayload.self, from: data) {
+                broadcastEvent(type: "message_read", data: payload, to: payload.senderId)
+            }
+        case "reaction":
+            if let payload = try? JSONDecoder().decode(ReactionWsPayload.self, from: data) {
+                saveAndBroadcastReaction(payload, from: userId, on: app)
+            }
         default:
             break
         }
     }
 
+    private static func saveAndBroadcastReaction(_ payload: ReactionWsPayload, from userId: UUID, on app: Application) {
+        let reaction = Reaction(
+            emoji: payload.emoji,
+            userId: userId,
+            messageId: payload.messageId
+        )
+
+        reaction.save(on: app.db).flatMap {
+            // Find who needs to know about this reaction (the recipient of the original message OR the sender)
+            // For simplicity, we can broadcast to the original recipient. 
+            // Better: find the message to get both parties.
+            Message.find(payload.messageId, on: app.db).map { message in
+                guard let message = message else { return }
+                
+                let response = WsResponse(success: true, data: reaction, message: "reaction")
+                if let responseData = try? JSONEncoder().encode(response),
+                   let responseString = String(data: responseData, encoding: .utf8) {
+                    
+                    // Send to both parties involved in the conversation
+                    connections[message.$sender.id]?.send(responseString)
+                    connections[message.$receiver.id]?.send(responseString)
+                }
+            }
+        }.whenComplete { _ in }
+    }
+
     private static func saveAndBroadcastMessage(_ payload: ChatMessagePayload, from senderId: UUID, on app: Application) {
         let message = Message(
             content: payload.content,
-            type: payload.type,
+            type: payload.messageType,
             senderId: senderId,
             receiverId: payload.receiverId,
             fileName: payload.fileName
@@ -66,14 +101,27 @@ enum MainSocket {
         message.save(on: app.db).flatMap {
             message.$sender.load(on: app.db).flatMap {
                 message.$receiver.load(on: app.db).map {
-                    if let receiverWs = connections[payload.receiverId],
-                       let responseData = try? JSONEncoder().encode(WsResponse(success: true, data: message, message: "chat_message")),
+                    let response = WsResponse(success: true, data: message, message: "chat_message")
+                    if let responseData = try? JSONEncoder().encode(response),
                        let responseString = String(data: responseData, encoding: .utf8) {
-                        receiverWs.send(responseString)
+                        
+                        // Send to receiver
+                        connections[payload.receiverId]?.send(responseString)
+                        
+                        // Acknowledge sender
+                        connections[senderId]?.send(responseString)
                     }
                 }
             }
         }.whenComplete { _ in }
+    }
+
+    private static func broadcastEvent<T: Content>(type: String, data: T, to recipientId: UUID) {
+        let response = WsResponse(success: true, data: data, message: type)
+        if let responseData = try? JSONEncoder().encode(response),
+           let responseString = String(data: responseData, encoding: .utf8) {
+            connections[recipientId]?.send(responseString)
+        }
     }
 
     private static func broadcastStatus(userId: UUID, online: Bool, on app: Application) {
@@ -85,12 +133,29 @@ enum MainSocket {
     }
 }
 
-struct WsEvent: Codable {
+struct WsEvent: Content {
     let type: String
 }
 
-struct UserStatusEvent: Codable {
+struct UserStatusEvent: Content {
     let userId: UUID
     let online: Bool
     let lastActive: Date
+}
+
+struct TypingPayload: Content {
+    let userId: UUID
+    let receiverId: UUID
+    let isTyping: Bool
+}
+
+struct ReadPayload: Content {
+    let messageId: UUID
+    let senderId: UUID // The person who sent the message that is now read
+    let readerId: UUID // The person who read it
+}
+
+struct ReactionWsPayload: Content {
+    let emoji: String
+    let messageId: UUID
 }

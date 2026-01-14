@@ -13,10 +13,9 @@ struct WsResponse<T: Content>: Content {
 }
 
 struct ChatMessagePayload: Content {
-    let senderId: UUID
     let receiverId: UUID
     let content: String
-    let type: MessageType
+    let messageType: MessageType
     let fileName: String?
 }
 

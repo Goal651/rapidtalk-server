@@ -9,7 +9,7 @@ enum MessageController {
         
         let message = Message(
             content: messagePayload.content,
-            type: messagePayload.type,
+            type: messagePayload.messageType,
             senderId: payload.userId,
             receiverId: messagePayload.receiverId,
             fileName: messagePayload.fileName
