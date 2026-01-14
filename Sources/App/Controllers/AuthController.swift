@@ -5,7 +5,8 @@ import PostgresKit
 
 struct AuthController {
     
-    func signup(req: Request) throws -> EventLoopFuture<APIResponse<AuthResponse>> {
+    @Sendable
+    func signup(req: Request) async throws -> APIResponse<AuthResponse> {
         let signup = try req.content.decode(SignupRequest.self)
         
         // Hash password
@@ -18,59 +19,45 @@ struct AuthController {
             online: true
         )
         
-        return user.save(on: req.db).flatMap {
-            do {
-                let token = try generateToken(for: user, req: req)
-                let response = AuthResponse(user: user, accessToken: token)
-                return req.eventLoop.makeSucceededFuture(
-                    APIResponse(success: true, data: response, message: "User registered successfully")
-                )
-            } catch {
-                return req.eventLoop.makeFailedFuture(error)
-            }
-        }.flatMapError { error in
+        do {
+            try await user.save(on: req.db)
+            let token = try generateToken(for: user, req: req)
+            let response = AuthResponse(user: user, accessToken: token)
+            return APIResponse(success: true, data: response, message: "User registered successfully")
+        } catch {
             req.logger.error("Signup failed: \(error)")
             
             // Check for specific Postgres unique constraint violation
             if let psqlError = error as? PSQLError, psqlError.serverInfo?[.sqlState] == "23505" {
-                return req.eventLoop.makeFailedFuture(Abort(.conflict, reason: "Email already exists"))
+                throw Abort(.conflict, reason: "Email already exists")
             }
             
-            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Database error: \(error.localizedDescription)"))
+            throw Abort(.internalServerError, reason: "Database error: \(error.localizedDescription)")
         }
     }
     
-    func login(req: Request) throws -> EventLoopFuture<APIResponse<AuthResponse>> {
+    @Sendable
+    func login(req: Request) async throws -> APIResponse<AuthResponse> {
         let login = try req.content.decode(LoginRequest.self)
         
-        return User.query(on: req.db)
+        guard let user = try await User.query(on: req.db)
             .filter(\.$email == login.email)
-            .first()
-            .unwrap(or: Abort(.unauthorized, reason: "Invalid email or password"))
-            .flatMap { user in
-                do {
-                    guard try req.password.verify(login.password, created: user.password) else {
-                        throw Abort(.unauthorized, reason: "Invalid email or password")
-                    }
-                    
-                    user.online = true
-                    user.lastActive = Date()
-                    
-                    return user.save(on: req.db).flatMap {
-                        do {
-                            let token = try generateToken(for: user, req: req)
-                            let response = AuthResponse(user: user, accessToken: token)
-                            return req.eventLoop.makeSucceededFuture(
-                                APIResponse(success: true, data: response, message: "Login successful")
-                            )
-                        } catch {
-                            return req.eventLoop.makeFailedFuture(error)
-                        }
-                    }
-                } catch {
-                    return req.eventLoop.makeFailedFuture(error)
-                }
-            }
+            .first() else {
+            throw Abort(.unauthorized, reason: "Invalid email or password")
+        }
+        
+        guard try req.password.verify(login.password, created: user.password) else {
+            throw Abort(.unauthorized, reason: "Invalid email or password")
+        }
+        
+        user.online = true
+        user.lastActive = Date()
+        
+        try await user.save(on: req.db)
+        
+        let token = try generateToken(for: user, req: req)
+        let response = AuthResponse(user: user, accessToken: token)
+        return APIResponse(success: true, data: response, message: "Login successful")
     }
     
     private func generateToken(for user: User, req: Request) throws -> String {

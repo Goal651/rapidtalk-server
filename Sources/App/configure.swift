@@ -18,6 +18,9 @@ public func configure(_ app: Application) throws {
     // Serve files from Public/
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
+    // Increase max body size for uploads (e.g., 10MB)
+    app.routes.defaultMaxBodySize = "10mb"
+
     // Set ISO8601 for JSON Dates
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601

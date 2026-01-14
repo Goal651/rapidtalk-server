@@ -15,13 +15,14 @@ func routes(_ app: Application) throws {
         auth.post("signup", use: authController.signup)
         auth.post("login", use: authController.login)
     }
-    app.post("users","seed", use: UserController.seed)
+    
+    app.post("users", "seed", use: UserController.seed)
+    
     // Protected Routes
     let protected = app.grouped(SessionPayload.authenticator(), SessionPayload.guardMiddleware())
     
     // User Routes
     protected.group("users") { users in
-      
         users.get(use: UserController.all)
         users.get("search", use: UserController.search)
         users.get(":userID", use: UserController.getById)
@@ -29,13 +30,12 @@ func routes(_ app: Application) throws {
         users.post("avatar", use: UserController.uploadAvatar)
     }
     
-    protected.get("user") { req -> EventLoopFuture<APIResponse<User>> in
+    protected.get("user") { req async throws -> APIResponse<User> in
         let payload = try req.auth.require(SessionPayload.self)
-        return User.find(payload.userId, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .map { user in
-                APIResponse(success: true, data: user, message: "User found")
-            }
+        guard let user = try await User.find(payload.userId, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        return APIResponse(success: true, data: user, message: "User found")
     }
 
     // Message Routes
