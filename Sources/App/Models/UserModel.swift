@@ -44,6 +44,12 @@ final class User: Model, @unchecked Sendable, Content {
     @Field(key: "online")
     var online: Bool
 
+    @Field(key: "message_count")
+    var messageCount: Int
+
+    @OptionalField(key: "suspended_at")
+    var suspendedAt: Date?
+
     init() {}
 
     init(id: UUID? = nil, 
@@ -55,7 +61,9 @@ final class User: Model, @unchecked Sendable, Content {
          status: String? = nil, 
          bio: String? = nil, 
          lastActive: Date? = nil, 
-         online: Bool = false) {
+         online: Bool = false,
+         messageCount: Int = 0,
+         suspendedAt: Date? = nil) {
         self.id = id
         self.name = name
         self.email = email
@@ -66,5 +74,7 @@ final class User: Model, @unchecked Sendable, Content {
         self.bio = bio
         self.lastActive = lastActive
         self.online = online
+        self.messageCount = messageCount
+        self.suspendedAt = suspendedAt
     }
 }

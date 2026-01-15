@@ -67,8 +67,33 @@ actor ConnectionManager {
     }
 }
 
+actor AdminConnectionManager {
+    private var adminConnections: [UUID: WebSocket] = [:]
+
+    func addConnection(_ ws: WebSocket, for adminId: UUID) {
+        adminConnections[adminId] = ws
+        print("Admin \(adminId) connected.")
+    }
+
+    func removeConnection(for adminId: UUID) {
+        adminConnections.removeValue(forKey: adminId)
+        print("Admin \(adminId) disconnected.")
+    }
+
+    func broadcastToAdmins<T: Content>(_ event: T, type: String) {
+        let response = WsResponse(success: true, data: event, message: type)
+        guard let data = try? JSONEncoder().encode(response),
+              let text = String(data: data, encoding: .utf8) else { return }
+        
+        for ws in adminConnections.values {
+            ws.send(text)
+        }
+    }
+}
+
 enum MainSocket {
     static let manager = ConnectionManager()
+    static let adminManager = AdminConnectionManager()
 
     static func register(on app: Application) {
         app.webSocket("ws") { req, ws in
@@ -91,6 +116,13 @@ enum MainSocket {
                     
                     // Broadcast the status update
                     await manager.broadcastStatus(userId: userId, online: true, lastActive: user.lastActive ?? Date())
+                    
+                    // Broadcast to admins
+                    await adminManager.broadcastToAdmins(AdminUserStatusEvent(
+                        userId: userId,
+                        online: true,
+                        lastActive: user.lastActive ?? Date()
+                    ), type: "admin_user_status")
                 }
             }
 
@@ -110,7 +142,35 @@ enum MainSocket {
                         
                         // Broadcast the status update (lastActive is now set)
                         await manager.broadcastStatus(userId: userId, online: false, lastActive: user.lastActive ?? Date())
+                        
+                        // Broadcast to admins
+                        await adminManager.broadcastToAdmins(AdminUserStatusEvent(
+                            userId: userId,
+                            online: false,
+                            lastActive: user.lastActive ?? Date()
+                        ), type: "admin_user_status")
                     }
+                }
+            }
+        }
+
+        app.webSocket("ws", "admin") { req, ws in
+            guard let token = req.query[String.self, at: "token"],
+                  let payload = try? req.jwt.verify(token, as: SessionPayload.self),
+                  payload.role == .admin else {
+                ws.close(promise: nil)
+                return
+            }
+
+            let adminId = payload.userId
+            
+            Task {
+                await adminManager.addConnection(ws, for: adminId)
+            }
+
+            ws.onClose.whenComplete { _ in
+                Task {
+                    await adminManager.removeConnection(for: adminId)
                 }
             }
         }
@@ -177,12 +237,26 @@ enum MainSocket {
         )
 
         message.save(on: app.db).flatMap {
-            message.$sender.load(on: app.db).flatMap {
+            // Increment message count for sender
+            User.find(senderId, on: app.db).flatMap { sender in
+                if let sender = sender {
+                    sender.messageCount += 1
+                    return sender.save(on: app.db)
+                }
+                return app.db.eventLoop.makeSucceededVoidFuture()
+            }.flatMap {
+                message.$sender.load(on: app.db).flatMap {
                 message.$receiver.load(on: app.db).flatMap {
                     message.$replyTo.load(on: app.db).map {
                         Task {
                             await manager.send(message, to: payload.receiverId, type: "chat_message")
                             await manager.send(message, to: senderId, type: "chat_message")
+                            
+                            // Broadcast to admins (incremental clicker)
+                            await adminManager.broadcastToAdmins(AdminMessageSentEvent(
+                                userId: senderId,
+                                messageCount: 1
+                            ), type: "admin_message_sent")
                         }
                     }
                 }
@@ -220,4 +294,29 @@ struct ReadPayload: Content {
 struct ReactionWsPayload: Content {
     let emoji: String
     let messageId: UUID
+}
+
+// Admin WS Events
+struct AdminUserStatusEvent: Content {
+    let userId: UUID
+    let online: Bool
+    let lastActive: Date
+}
+
+struct AdminMessageSentEvent: Content {
+    let userId: UUID
+    let messageCount: Int
+}
+
+struct AdminNewUserEvent: Content {
+    let userId: UUID
+    let name: String
+    let email: String
+    let createdAt: Date
+}
+
+struct AdminUserSuspendedEvent: Content {
+    let userId: UUID
+    let suspended: Bool
+    let suspendedBy: UUID
 }

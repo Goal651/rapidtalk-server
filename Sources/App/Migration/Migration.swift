@@ -112,3 +112,19 @@ struct AddDurationToMessages: Migration {
             .update()
     }
 }
+
+struct AddAdminFieldsToUser: Migration {
+    func prepare(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("users")
+            .field("message_count", .int, .required, .custom("DEFAULT 0"))
+            .field("suspended_at", .datetime)
+            .update()
+    }
+
+    func revert(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("users")
+            .deleteField("message_count")
+            .deleteField("suspended_at")
+            .update()
+    }
+}

@@ -47,5 +47,13 @@ func routes(_ app: Application) throws {
         messages.get("conversation", ":user1ID", ":user2ID", use: MessageController.getConversation)
     }
 
+    // Admin Routes
+    protected.grouped(SessionPayload.AdminGuardMiddleware()).group("admin") { admin in
+        admin.get("dashboard", use: AdminController.getDashboardStats)
+        admin.get("users", use: AdminController.getUsers)
+        admin.get("users", ":userID", use: AdminController.getUserDetails)
+        admin.put("users", ":userID", "suspend", use: AdminController.suspendUser)
+    }
+
     MainSocket.register(on: app)
 }

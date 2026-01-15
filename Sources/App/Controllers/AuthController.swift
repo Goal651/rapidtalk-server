@@ -21,6 +21,19 @@ struct AuthController {
         
         do {
             try await user.save(on: req.db)
+            
+            // Broadcast to admins
+            Task {
+                if let userId = user.id {
+                    await MainSocket.adminManager.broadcastToAdmins(AdminNewUserEvent(
+                        userId: userId,
+                        name: user.name,
+                        email: user.email,
+                        createdAt: user.createdAt ?? Date()
+                    ), type: "admin_new_user")
+                }
+            }
+            
             let token = try generateToken(for: user, req: req)
             let response = AuthResponse(user: user, accessToken: token)
             return APIResponse(success: true, data: response, message: "User registered successfully")

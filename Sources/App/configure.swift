@@ -46,6 +46,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateMessage())
     app.migrations.add(CreateReaction())
     app.migrations.add(AddDurationToMessages())
+    app.migrations.add(AddAdminFieldsToUser())
 
     try app.autoMigrate()
     try routes(app)

@@ -19,6 +19,13 @@ enum MessageController {
         )
         
         try await message.save(on: req.db)
+        
+        // Increment message count for sender
+        if let sender = try? await User.find(payload.userId, on: req.db) {
+            sender.messageCount += 1
+            _ = try? await sender.save(on: req.db)
+        }
+        
         try await message.$sender.load(on: req.db)
         try await message.$receiver.load(on: req.db)
         try await message.$replyTo.load(on: req.db)
