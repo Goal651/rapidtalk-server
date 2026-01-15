@@ -14,6 +14,7 @@ enum MessageController {
             senderId: payload.userId,
             receiverId: messagePayload.receiverId,
             fileName: messagePayload.fileName,
+            duration: messagePayload.duration,
             replyToId: messagePayload.replyToId
         )
         

@@ -98,3 +98,17 @@ struct CreateReaction: Migration {
         database.schema("reactions").delete()
     }
 }
+
+struct AddDurationToMessages: Migration {
+    func prepare(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("messages")
+            .field("duration", .double)
+            .update()
+    }
+
+    func revert(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("messages")
+            .deleteField("duration")
+            .update()
+    }
+}

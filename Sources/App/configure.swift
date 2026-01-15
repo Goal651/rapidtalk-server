@@ -15,13 +15,10 @@ public func configure(_ app: Application) throws {
     app.http.server.configuration.hostname = "0.0.0.0"
     app.http.server.configuration.port = 8080
 
-    // Serve files from Public/
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
-    // Increase max body size for uploads (e.g., 10MB)
     app.routes.defaultMaxBodySize = "10mb"
 
-    // Set ISO8601 for JSON Dates
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
     ContentConfiguration.global.use(encoder: encoder, for: .json)
@@ -30,7 +27,6 @@ public func configure(_ app: Application) throws {
     decoder.dateDecodingStrategy = .iso8601
     ContentConfiguration.global.use(decoder: decoder, for: .json)
 
-    // Configure JWT
     app.jwt.signers.use(.hs256(key: Environment.get("JWT_SECRET") ?? "your-secret-key"))
 
     app.databases.use(
@@ -49,6 +45,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUser())
     app.migrations.add(CreateMessage())
     app.migrations.add(CreateReaction())
+    app.migrations.add(AddDurationToMessages())
 
     try app.autoMigrate()
     try routes(app)

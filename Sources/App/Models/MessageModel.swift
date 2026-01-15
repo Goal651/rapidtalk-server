@@ -29,6 +29,9 @@ final class Message: Model, @unchecked Sendable, Content {
     @Field(key: "edited")
     var edited: Bool
 
+    @OptionalField(key: "duration")
+    var duration: Double?
+
     @Children(for: \.$message)
     var reactions: [Reaction]
 
@@ -43,6 +46,7 @@ final class Message: Model, @unchecked Sendable, Content {
          senderId: User.IDValue,
          receiverId: User.IDValue,
          fileName: String? = nil,
+         duration: Double? = nil,
          edited: Bool = false,
          replyToId: Message.IDValue? = nil) {
         self.id = id
@@ -51,6 +55,7 @@ final class Message: Model, @unchecked Sendable, Content {
         self.$sender.id = senderId
         self.$receiver.id = receiverId
         self.fileName = fileName
+        self.duration = duration
         self.edited = edited
         self.$replyTo.id = replyToId
     }

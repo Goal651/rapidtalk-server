@@ -17,6 +17,7 @@ struct ChatMessagePayload: Content {
     let content: String
     let messageType: MessageType
     let fileName: String?
+    let duration: Double?
     let replyToId: UUID?
 }
 

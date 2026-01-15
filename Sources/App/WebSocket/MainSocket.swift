@@ -172,6 +172,7 @@ enum MainSocket {
             senderId: senderId,
             receiverId: payload.receiverId,
             fileName: payload.fileName,
+            duration: payload.duration,
             replyToId: payload.replyToId
         )
 
@@ -212,8 +213,8 @@ struct TypingPayload: Content {
 
 struct ReadPayload: Content {
     let messageId: UUID
-    let senderId: UUID // The person who sent the message that is now read
-    let readerId: UUID // The person who read it
+    let senderId: UUID 
+    let readerId: UUID 
 }
 
 struct ReactionWsPayload: Content {
