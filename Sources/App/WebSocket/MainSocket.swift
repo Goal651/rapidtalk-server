@@ -118,7 +118,7 @@ enum MainSocket {
                     await manager.broadcastStatus(userId: userId, online: true, lastActive: user.lastActive ?? Date())
                     
                     // Broadcast to admins
-                    await adminManager.broadcastToAdmins(AdminUserStatusEvent(
+                    await adminManager.broadcastToAdmins(UserStatusEvent(
                         userId: userId,
                         online: true,
                         lastActive: user.lastActive ?? Date()
@@ -144,7 +144,7 @@ enum MainSocket {
                         await manager.broadcastStatus(userId: userId, online: false, lastActive: user.lastActive ?? Date())
                         
                         // Broadcast to admins
-                        await adminManager.broadcastToAdmins(AdminUserStatusEvent(
+                        await adminManager.broadcastToAdmins(UserStatusEvent(
                             userId: userId,
                             online: false,
                             lastActive: user.lastActive ?? Date()
@@ -237,29 +237,29 @@ enum MainSocket {
         )
 
         message.save(on: app.db).flatMap {
-            // Increment message count for sender
             User.find(senderId, on: app.db).flatMap { sender in
                 if let sender = sender {
                     sender.messageCount += 1
                     return sender.save(on: app.db)
                 }
                 return app.db.eventLoop.makeSucceededVoidFuture()
-            }.flatMap {
-                message.$sender.load(on: app.db).flatMap {
-                message.$receiver.load(on: app.db).flatMap {
-                    message.$replyTo.load(on: app.db).map {
-                        Task {
-                            await manager.send(message, to: payload.receiverId, type: "chat_message")
-                            await manager.send(message, to: senderId, type: "chat_message")
-                            
-                            // Broadcast to admins (incremental clicker)
-                            await adminManager.broadcastToAdmins(AdminMessageSentEvent(
-                                userId: senderId,
-                                messageCount: 1
-                            ), type: "admin_message_sent")
-                        }
-                    }
-                }
+            }
+        }.flatMap {
+            message.$sender.load(on: app.db)
+        }.flatMap {
+            message.$receiver.load(on: app.db)
+        }.flatMap {
+            message.$replyTo.load(on: app.db)
+        }.map {
+            Task {
+                await manager.send(message, to: payload.receiverId, type: "chat_message")
+                await manager.send(message, to: senderId, type: "chat_message")
+                
+                // Broadcast to admins
+                await adminManager.broadcastToAdmins(AdminMessageSentEvent(
+                    userId: senderId,
+                    messageCount: 1
+                ), type: "admin_message_sent")
             }
         }.whenComplete { _ in }
     }
@@ -294,13 +294,6 @@ struct ReadPayload: Content {
 struct ReactionWsPayload: Content {
     let emoji: String
     let messageId: UUID
-}
-
-// Admin WS Events
-struct AdminUserStatusEvent: Content {
-    let userId: UUID
-    let online: Bool
-    let lastActive: Date
 }
 
 struct AdminMessageSentEvent: Content {
