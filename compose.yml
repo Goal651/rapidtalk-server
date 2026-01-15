@@ -1,35 +1,33 @@
-#services:
-#  app-dev:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile.dev
-#    ports:
-#      - "8080:8080"
-#    container_name: rapidtalk-server-dev
-#    volumes:
-#      - ./Package.swift:/app/Package.swift
-#      - ./Sources:/app/Sources
-#      - ./Tests:/app/Tests
-#    environment:
-#      - APP_ENV=development
-#    # Optional: For even faster reloads, skip building tests
-#    command: swiftwatch run --skip-build-tests
-#    
-#   app-prod:
-#     build:
-#       context: .
-#       dockerfile: Dockerfile
-#     ports:
-#       - "8081:8080"
-#     container_name: rapidtalk-server-prod
-#     environment:
-#       - APP_ENV=production
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    container_name: rapidtalk-api
+    environment:
+      - APP_ENV=production
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_NAME=rapidtalk
+      - JWT_SECRET=your-secret-key-change-me
+    depends_on:
+      - db
+
   db:
     image: postgres:15
+    container_name: rapidtalk-db
     environment:
       POSTGRES_DB: rapidtalk
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
