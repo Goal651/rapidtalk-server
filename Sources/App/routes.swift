@@ -20,7 +20,11 @@ func routes(_ app: Application) throws {
     app.post("users", "seed", use: UserController.seed)
     
     // Protected Routes
-    let protected = app.grouped(SessionPayload.authenticator(), SessionPayload.guardMiddleware())
+    let protected = app.grouped(
+        SessionPayload.authenticator(), 
+        SessionPayload.guardMiddleware(),
+        SessionPayload.UserSuspensionMiddleware()
+    )
     
     // User Routes
     protected.group("users") { users in

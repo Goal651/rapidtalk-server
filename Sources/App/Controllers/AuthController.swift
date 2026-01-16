@@ -58,6 +58,10 @@ struct AuthController {
             .first() else {
             throw Abort(.unauthorized, reason: "Invalid email or password")
         }
+
+        if user.suspendedAt != nil {
+            throw Abort(.unauthorized, reason: "This account has been suspended.")
+        }
         
         guard try req.password.verify(login.password, created: user.password) else {
             throw Abort(.unauthorized, reason: "Invalid email or password")

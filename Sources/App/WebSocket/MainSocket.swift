@@ -110,6 +110,13 @@ enum MainSocket {
                 
                 // Update database: user is online
                 if let user = try? await User.find(userId, on: app.db).get() {
+                    // Check if suspended
+                    if user.suspendedAt != nil {
+                        await manager.send(UserSuspendedEvent(userId: userId, suspended: true), to: userId, type: "user_suspended")
+                        ws.close(promise: nil)
+                        return
+                    }
+
                     user.online = true
                     user.lastActive = Date()
                     _ = try? await user.save(on: app.db).get()
@@ -319,4 +326,9 @@ struct AdminUserSuspendedEvent: Content {
     let userId: UUID
     let suspended: Bool
     let suspendedBy: UUID
+}
+
+struct UserSuspendedEvent: Content {
+    let userId: UUID
+    let suspended: Bool
 }

@@ -148,6 +148,12 @@ enum AdminController {
                 suspended: suspendReq.suspended,
                 suspendedBy: adminPayload.userId
             ), type: "admin_user_suspended")
+            
+            // Notify the user directly if they are online
+            await MainSocket.manager.send(UserSuspendedEvent(
+                userId: userId, 
+                suspended: suspendReq.suspended
+            ), to: userId, type: "user_suspended")
         }
         
         let dto = AdminUserDTO(
