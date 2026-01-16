@@ -214,12 +214,14 @@ enum MainSocket {
         )
 
         reaction.save(on: app.db).flatMap {
-            Message.find(payload.messageId, on: app.db).map { message in
-                guard let message = message else { return }
-    
-                Task {
-                    await manager.send(reaction, to: message.$sender.id, type: "reaction")
-                    await manager.send(reaction, to: message.$receiver.id, type: "reaction")
+            reaction.$user.load(on: app.db).flatMap {
+                Message.find(payload.messageId, on: app.db).map { message in
+                    guard let message = message else { return }
+        
+                    Task {
+                        await manager.send(reaction, to: message.$sender.id, type: "reaction")
+                        await manager.send(reaction, to: message.$receiver.id, type: "reaction")
+                    }
                 }
             }
         }.whenComplete { _ in }
@@ -250,6 +252,11 @@ enum MainSocket {
             message.$receiver.load(on: app.db)
         }.flatMap {
             message.$replyTo.load(on: app.db)
+        }.flatMap {
+            if let reply = message.replyTo {
+                return reply.$sender.load(on: app.db)
+            }
+            return app.db.eventLoop.makeSucceededVoidFuture()
         }.map {
             Task {
                 await manager.send(message, to: payload.receiverId, type: "chat_message")

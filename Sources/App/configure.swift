@@ -49,5 +49,27 @@ public func configure(_ app: Application) throws {
     app.migrations.add(AddAdminFieldsToUser())
 
     try app.autoMigrate()
+    
+    // Seed Admin User if not exists
+    Task {
+        do {
+            let adminEmail = "admin@admin.com"
+            if try await User.query(on: app.db).filter(\.$email == adminEmail).first() == nil {
+                let hashedPassword = try app.password.hash("admin12")
+                let admin = User(
+                    name: "Admin",
+                    email: adminEmail,
+                    password: hashedPassword,
+                    userRole: .admin,
+                    online: false
+                )
+                try await admin.save(on: app.db)
+                app.logger.info("Default admin user created.")
+            }
+        } catch {
+            app.logger.error("Failed to seed admin user: \(error)")
+        }
+    }
+
     try routes(app)
 }

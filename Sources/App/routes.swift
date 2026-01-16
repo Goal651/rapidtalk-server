@@ -25,6 +25,7 @@ func routes(_ app: Application) throws {
     // User Routes
     protected.group("users") { users in
         users.get(use: UserController.all)
+        users.get("me", use: UserController.me)
         users.get("search", use: UserController.search)
         users.get(":userID", use: UserController.getById)
         users.patch(":userID", "status", use: UserController.updateStatus)

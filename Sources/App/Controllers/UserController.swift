@@ -13,6 +13,15 @@ enum UserController {
     }
 
     @Sendable
+    static func me(req: Request) async throws -> APIResponse<User> {
+        let payload = try req.auth.require(SessionPayload.self)
+        guard let user = try await User.find(payload.userId, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        return APIResponse(success: true, data: user, message: "User found")
+    }
+
+    @Sendable
     static func getById(req: Request) async throws -> APIResponse<User> {
         guard let userID = req.parameters.get("userID", as: UUID.self) else {
             throw Abort(.badRequest)
