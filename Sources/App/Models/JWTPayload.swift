@@ -1,4 +1,5 @@
 import Vapor
+import Fluent
 import JWT
 
 struct SessionPayload: JWTPayload, Authenticatable {
@@ -20,7 +21,7 @@ struct SessionPayload: JWTPayload, Authenticatable {
             
             // Check suspension status in database
             guard let user = try await User.query(on: request.db)
-                .filter(\.$id == payload.userId)
+                .filter(\User.$id == payload.userId)
                 .first() else {
                 throw Abort(.unauthorized)
             }
