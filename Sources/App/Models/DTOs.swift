@@ -65,3 +65,20 @@ struct SuspendRequest: Content {
     let suspended: Bool
     let reason: String?
 }
+
+// Analytics DTOs
+struct AdminAnalytics: Content {
+    let userGrowth: [TimeSeriesPoint]
+    let messageActivity: [TimeSeriesPoint]
+    let messageTypeDistribution: [TypeDistributionPoint]
+}
+
+struct TimeSeriesPoint: Content {
+    let date: String
+    let count: Int
+}
+
+struct TypeDistributionPoint: Content {
+    let type: String
+    let count: Int
+}

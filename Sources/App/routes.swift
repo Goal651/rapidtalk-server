@@ -55,6 +55,7 @@ func routes(_ app: Application) throws {
     // Admin Routes
     protected.grouped(SessionPayload.AdminGuardMiddleware()).group("admin") { admin in
         admin.get("dashboard", use: AdminController.getDashboardStats)
+        admin.get("analytics", use: AdminController.getAnalytics)
         admin.get("users", use: AdminController.getUsers)
         admin.get("users", ":userID", use: AdminController.getUserDetails)
         admin.put("users", ":userID", "suspend", use: AdminController.suspendUser)

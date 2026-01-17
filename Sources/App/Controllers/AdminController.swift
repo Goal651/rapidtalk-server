@@ -173,4 +173,59 @@ enum AdminController {
 
         return APIResponse(success: true, data: dto, message: "User status updated")
     }
+
+    @Sendable
+    static func getAnalytics(req: Request) async throws -> APIResponse<AdminAnalytics> {
+        let thirtyDaysAgo = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withFullDate]
+        
+        // 1. User Growth (Daily registrations)
+        let users = try await User.query(on: req.db)
+            .filter(\.$createdAt >= thirtyDaysAgo)
+            .all()
+        
+        var userStats: [String: Int] = [:]
+        for user in users {
+            if let date = user.createdAt {
+                let dateString = dateFormatter.string(from: date)
+                userStats[dateString, default: 0] += 1
+            }
+        }
+        
+        let userGrowth = userStats.map { TimeSeriesPoint(date: $0.key, count: $0.value) }
+            .sorted { $0.date < $1.date }
+
+        // 2. Message Activity (Daily counts)
+        let messages = try await Message.query(on: req.db)
+            .filter(\.$timestamp >= thirtyDaysAgo)
+            .all()
+            
+        var msgStats: [String: Int] = [:]
+        var typeStats: [MessageType: Int] = [:]
+        
+        for msg in messages {
+            if let date = msg.timestamp {
+                let dateString = dateFormatter.string(from: date)
+                msgStats[dateString, default: 0] += 1
+            }
+            typeStats[msg.type, default: 0] += 1
+        }
+        
+        let messageActivity = msgStats.map { TimeSeriesPoint(date: $0.key, count: $0.value) }
+            .sorted { $0.date < $1.date }
+            
+        // 3. Message Type Distribution
+        let distribution = MessageType.allCases.map { type in
+            TypeDistributionPoint(type: type.rawValue, count: typeStats[type] ?? 0)
+        }
+
+        let analytics = AdminAnalytics(
+            userGrowth: userGrowth,
+            messageActivity: messageActivity,
+            messageTypeDistribution: distribution
+        )
+
+        return APIResponse(success: true, data: analytics, message: "Analytics retrieved successfully")
+    }
 }
