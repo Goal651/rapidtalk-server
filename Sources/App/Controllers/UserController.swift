@@ -89,7 +89,7 @@ enum UserController {
         try await req.fileio.writeFile(upload.avatar.data, at: path)
         
         guard let user = try await User.find(payload.userId, on: req.db) else {
-            throw Abort(.notFound)
+            return APIResponse(success: false, data: nil, message: "Account Doesn't Exist.")
         }
         
         let avatarUrl = "/avatars/\(filename)"

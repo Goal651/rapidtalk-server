@@ -70,7 +70,7 @@ actor ConnectionManager {
 actor AdminConnectionManager {
     private var adminConnections: [UUID: WebSocket] = [:]
 
-    func addConnection(_ ws: WebSocket, for adminId: UUID) {
+    func addConnection(_ ws:WebSocket,for adminId:UUID){
         adminConnections[adminId] = ws
         print("Admin \(adminId) connected.")
     }
@@ -110,7 +110,7 @@ enum MainSocket {
                 
                 // Update database: user is online
                 if let user = try? await User.find(userId, on: app.db).get() {
-                    // Check if suspended
+//                     Check if suspended
                     if user.suspendedAt != nil {
                         await manager.send(UserSuspendedEvent(userId: userId, suspended: true), to: userId, type: "user_suspended")
                         ws.close(promise: nil)

@@ -42,10 +42,9 @@ struct AuthController {
             
             // Check for specific Postgres unique constraint violation
             if let psqlError = error as? PSQLError, psqlError.serverInfo?[.sqlState] == "23505" {
-                throw Abort(.conflict, reason: "Email already exists")
+                return APIResponse(success: false, data: nil, message: "Email Already Exists.")
             }
-            
-            throw Abort(.internalServerError, reason: "Database error: \(error.localizedDescription)")
+            return APIResponse(success: false, data: nil, message: "Registration Failed. Please Try again later.")
         }
     }
     
@@ -56,15 +55,15 @@ struct AuthController {
         guard let user = try await User.query(on: req.db)
             .filter(\.$email == login.email)
             .first() else {
-            throw Abort(.unauthorized, reason: "Invalid email or password")
+            return APIResponse(success: false, data: nil, message: "Account doesn't Exist.")
         }
 
         if user.suspendedAt != nil {
-            throw Abort(.unauthorized, reason: "This account has been suspended.")
+            return APIResponse(success: false, data: nil, message: "This account has been suspended.")
         }
         
         guard try req.password.verify(login.password, created: user.password) else {
-            throw Abort(.unauthorized, reason: "Invalid email or password")
+            return APIResponse(success: false, data: nil, message: "Incorrect Password.")
         }
         
         user.online = true
