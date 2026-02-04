@@ -17,7 +17,7 @@ func routes(_ app: Application) throws {
         auth.post("login", use: authController.login)
     }
     
-    app.post("users", "seed", use: UserController.seed)
+    app.get("users", "seed", use: UserController.seed)
     
     // Protected Routes
     let protected = app.grouped(
